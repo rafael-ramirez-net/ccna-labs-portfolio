@@ -71,3 +71,11 @@ Se estableció una ruta estática predeterminada en `R3` apuntando hacia la inte
 * Configuración avanzada de OSPFv2 en formato CLI Cisco IOS.
 * Gestión de métricas, distancias administrativas (AD 110) y tipos de LSA externos (Type 2).
 * Aplicación de buenas prácticas de seguridad operativa en redes de acceso corporativas.
+---
+### 6. Evidencias de Ejecución (Packet Tracer)
+
+**Prueba de Conectividad End-to-End (Ping desde PC1 a 8.8.8.8):**
+![Ping Exitoso](../ping-exitoso-ospf.png)
+
+**Tabla de Enrutamiento en R1 (Mostrando rutas OSPF y ruta por defecto O*E2):**
+![Ruta R1 OSPF](../R1-show-route.png)
