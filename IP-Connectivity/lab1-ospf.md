@@ -75,7 +75,7 @@ Se estableció una ruta estática predeterminada en `R3` apuntando hacia la inte
 ### 6. Evidencias de Ejecución (Packet Tracer)
 
 **Prueba de Conectividad End-to-End (Ping desde PC1 a 8.8.8.8):**
-![Ping Exitoso](../ping-exitoso-ospf.png)
+![Ping Exitoso](ping-exitoso-ospf.png)
 
 **Tabla de Enrutamiento en R1 (Mostrando rutas OSPF y ruta por defecto O*E2):**
-![Ruta R1 OSPF](../R1-show-route.png)
+![Ruta R1 OSPF](R1-show-route.png)
