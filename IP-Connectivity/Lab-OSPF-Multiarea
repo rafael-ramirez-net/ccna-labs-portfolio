@@ -1,0 +1,170 @@
+
+# Network Engineering Portfolio | CCNA 200-301
+
+## Lab OSPF Multiarea: Multi-Area OSPFv2 Implementation, Router Roles (ABR), and Route Summarization
+
+**Author:** Rafael Andrés Ramírez Benavides
+**Role:** Junior Network Engineer
+
+---
+
+## 1. Executive Summary
+
+A multi-area network topology was designed and implemented using **OSPFv2** to optimize Link-State Database (LSDB) size and reduce routing overhead in expanding corporate networks.
+
+Two non-backbone areas were configured and interconnected through a core Backbone Area (Area 0):
+
+- **Area 10** (Branch Office)
+- **Area 20** (Data Center)
+
+Route summarization was configured on the Area Border Routers (ABRs), along with interface hardening, to improve convergence time and operational efficiency across the domain.
+
+---
+
+## 2. Network Diagram and IP Addressing Scheme
+
+![Packet Tracer topology](topologia.OSPF-Multiarea.png)
+
+```text
+[ PC_Branch: 192.168.10.10 ]
+         | (LAN VLAN 10 - Area 10)
+     [ R1 (ABR) ]
+         | 10.1.12.0/30 (Area 0 - Backbone)
+     [ R2 (Backbone Router) ]
+         | 10.1.23.0/30 (Area 0 - Backbone)
+     [ R3 (ABR / ServerFarm) ]
+         | (LAN VLAN 20 - 192.168.20.0/24 - Area 20)
+```
+
+| Device | Interface | IP Address / Mask | Purpose / OSPF Area |
+|--------|-----------|-------------------|---------------------|
+| R1 (ABR) | Gi0/0/1 | 192.168.10.1 /24 | Branch LAN Gateway (Area 10) |
+| R1 (ABR) | Gi0/0/0 | 10.1.12.1 /30 | Link to R2 (Area 0) |
+| R2 (Backbone) | Gi0/0/0 | 10.1.12.2 /30 | Link to R1 (Area 0) |
+| R2 (Backbone) | Gi0/0/1 | 10.1.23.2 /30 | Link to R3 (Area 0) |
+| R3 (ABR / Server) | Gi0/0/0 | 10.1.23.3 /30 | Link to R2 (Area 0) |
+| R3 (ABR / Server) | Gi0/0/1 | 192.168.20.1 /24 | Data Center Gateway (Area 20) |
+
+---
+
+## 3. Key Tasks and Technical Implementation
+
+### A. OSPFv2 Area Segmentation
+
+Static Router IDs were assigned, and interfaces were placed into their respective logical areas:
+
+- **Area 0 (Backbone):** Inter-router point-to-point links (`10.1.12.0/30` and `10.1.23.0/30`).
+- **Area 10 (Branch):** End-user LAN segment (`192.168.10.0/24`) attached to R1.
+- **Area 20 (Data Center):** Server LAN segment (`192.168.20.0/24`) attached to R3.
+
+### B. ABR (Area Border Router) Role Verification
+
+R1 and R3 were configured as Area Border Routers (ABRs): each has interfaces in Area 0 and in one non-backbone area. They are responsible for converting Type 1 and Type 2 (intra-area) Link-State Advertisements into Type 3 (Summary LSAs) for propagation into the Backbone Area 0 and neighboring areas.
+
+R2 has all of its interfaces in Area 0, so it operates as a backbone router (not an ABR).
+
+### C. Interface Security & Route Summarization (`area range` and `passive-interface`)
+
+- Access interfaces facing LAN segments (Gi0/0/1 on R1 and R3) were set as `passive-interface` to suppress unnecessary Hello packet transmission and minimize attack surface.
+- Route summarization was configured at the ABR boundaries to reduce routing table overhead and isolate local link-state flapping from outer areas.
+
+---
+
+## 4. Key Verification Commands
+
+### OSPF Neighbor Adjacency Verification
+
+```text
+R1# show ip ospf neighbor
+
+Neighbor ID     Pri   State           Dead Time   Address         Interface
+2.2.2.2           1   FULL/BDR        00:00:30    10.1.12.2       GigabitEthernet0/0/0
+```
+
+![R1 OSPF neighbor verification](r1-ospfMultiarea-neighbor-route.png)
+
+**Key evidence:**
+
+- The adjacency with R2 (Router ID `2.2.2.2`) reached the **FULL** state over Gi0/0/0.
+- The `FULL/BDR` state shows that R2 was elected Backup DR on this segment (R1 acts as DR), so the Ethernet link is running OSPF's default **broadcast** network type with DR/BDR election.
+
+### OSPF Link-State Database (LSDB) Verification
+
+```text
+R1# show ip ospf database
+```
+
+**Key evidence:** Clear separation between Router Link States (Type 1) and Summary Net Link States (Type 3).
+
+### Multi-Area Routing Table Verification
+
+```text
+R1# show ip route
+
+Gateway of last resort is not set
+
+     10.0.0.0/8 is variably subnetted, 3 subnets, 2 masks
+C       10.1.12.0/30 is directly connected, GigabitEthernet0/0/0
+L       10.1.12.1/32 is directly connected, GigabitEthernet0/0/0
+O       10.1.23.0/30 [110/2] via 10.1.12.2, 00:01:29, GigabitEthernet0/0/0
+     192.168.10.0/24 is variably subnetted, 2 subnets, 2 masks
+C       192.168.10.0/24 is directly connected, GigabitEthernet0/0/1
+L       192.168.10.1/32 is directly connected, GigabitEthernet0/0/1
+O IA 192.168.20.0/24 [110/3] via 10.1.12.2, 00:01:19, GigabitEthernet0/0/0
+```
+
+![R1 routing table with intra-area and inter-area routes](r1-ospfMultiarea-neighbor-route.png)
+
+**Key evidence:**
+
+- `O 10.1.23.0/30`: intra-area route to the R2–R3 backbone link (Area 0), learned via R2.
+- `O IA 192.168.20.0/24`: inter-area route to the Data Center LAN (Area 20), advertised by ABR R3 as a Type 3 LSA and learned via R2 with a cost of 3.
+
+### End-to-End Connectivity Verification
+
+```text
+C:\> ping 192.168.20.10
+
+Pinging 192.168.20.10 with 32 bytes of data:
+
+Request timed out.
+Reply from 192.168.20.10: bytes=32 time=15ms TTL=125
+Reply from 192.168.20.10: bytes=32 time=11ms TTL=125
+Reply from 192.168.20.10: bytes=32 time=15ms TTL=125
+
+Ping statistics for 192.168.20.10:
+    Packets: Sent = 4, Received = 3, Lost = 1 (25% loss),
+Approximate round trip times in milli-seconds:
+    Minimum = 11ms, Maximum = 15ms, Average = 13ms
+
+C:\> ping 192.168.20.10
+
+Pinging 192.168.20.10 with 32 bytes of data:
+
+Reply from 192.168.20.10: bytes=32 time=21ms TTL=125
+Reply from 192.168.20.10: bytes=32 time=12ms TTL=125
+Reply from 192.168.20.10: bytes=32 time=12ms TTL=125
+Reply from 192.168.20.10: bytes=32 time=11ms TTL=125
+
+Ping statistics for 192.168.20.10:
+    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),
+Approximate round trip times in milli-seconds:
+    Minimum = 11ms, Maximum = 21ms, Average = 14ms
+```
+
+![End-to-end ping from PC1 to PC2](ping-exitosoOSPF-Multiarea.png)
+
+**Key evidence:**
+
+- Successful ICMP echo replies confirm end-to-end connectivity between the Branch LAN (Area 10, `192.168.10.0/24`) and the Data Center LAN (Area 20, `192.168.20.0/24`) across the Area 0 backbone.
+- `TTL=125` confirms the traffic was routed through three Layer 3 hops (R1, R2, R3): the host starts at TTL 128 and each router decrements it by 1.
+- The single timeout on the first attempt is expected: the first packet triggers ARP resolution along the path. The second run shows 0% packet loss.
+
+---
+
+## 5. Demonstrated Skills and Key Takeaways
+
+- Hierarchical OSPF multi-area design to ensure enterprise scalability.
+- Identification and verification of Area Border Router (ABR) functions and LSA types (1, 2, 3).
+- Resource optimization through prefix summarization and passive interface deployment.
+- Operational understanding of broadcast multi-access (DR/BDR election) vs. point-to-point behavior.
