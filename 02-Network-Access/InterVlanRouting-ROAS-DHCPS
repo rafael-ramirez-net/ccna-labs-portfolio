@@ -1,0 +1,118 @@
+# Network Engineering Portfolio | CCNA 200-301
+
+## Lab 06: VLANs, 802.1Q Trunking, Inter-VLAN Routing (ROAS), and Router DHCP Server
+
+**Author:** Rafael Andrés Ramírez Benavides
+**Role:** Junior Network Engineer
+
+
+---
+
+## 1. Executive Summary
+
+This project demonstrates the design, deployment, and verification of a segmented Layer 2/Layer 3 corporate network architecture.
+
+- The topology implements **Virtual Local Area Networks (VLANs)** to isolate broadcast domains between administrative and sales departments.
+- **Inter-VLAN routing** is established using the Router-on-a-Stick (ROAS) pattern via 802.1Q subinterfaces on a Cisco router.
+- **Cisco IOS DHCP Server pools** were configured per VLAN subinterface to automate dynamic IP address allocation across the infrastructure.
+
+---
+
+## 2. Network Topology and IP Addressing Scheme
+
+```text
+[ PC_Admin (VLAN 10) ]
+        | (Fa0/10 Access)
+    [ SW2 ] --- (Gi0/2 Trunk 802.1Q) --- [ SW1 ] --- (Gi0/1 Trunk) --- [ R1 (ROAS & DHCP Server) ]
+        | (Fa0/20 Access)
+[ PC_Users (VLAN 20) ]
+```
+
+| Device | Interface / Subinterface | IP Address / Mask | VLAN / Purpose | DHCP Pool / Reserved Range |
+|--------|--------------------------|-------------------|----------------|----------------------------|
+| R1 | Gi0/0/0.10 | 192.168.10.1 /24 | Gateway - Admin_MGMT (VLAN 10) | `VLAN10_POOL` (.1 - .10 excluded) |
+| R1 | Gi0/0/0.20 | 192.168.20.1 /24 | Gateway - Users_Sales (VLAN 20) | `VLAN20_POOL` (.1 - .10 excluded) |
+| SW2 | Fa0/10 | Unassigned | Access Port (VLAN 10) | N/A |
+| SW2 | Fa0/20 | Unassigned | Access Port (VLAN 20) | N/A |
+| SW2 | Gi0/2 | Unassigned | 802.1Q Trunk Link to SW1 | N/A |
+| PC_Admin | NIC (DHCP Client) | 192.168.10.11 /24 (Dynamic) | Management Workstation | Assigned via DHCP (`VLAN10_POOL`) |
+| PC_Users | NIC (DHCP Client) | 192.168.20.11 /24 (Dynamic) | Sales Workstation | Assigned via DHCP (`VLAN20_POOL`) |
+
+---
+
+## 3. Key Tasks and Technical Implementation
+
+### A. Layer 2 Segmentation (VLANs & Access Ports)
+
+Logical broadcast domains were created on the access switches to isolate department traffic. Unused ports were kept shut down and active endpoints were assigned explicitly to access mode:
+
+- **VLAN 10 (Admin_MGMT):** Subnet `192.168.10.0/24`
+- **VLAN 20 (Users_Sales):** Subnet `192.168.20.0/24`
+
+### B. 802.1Q Trunking Infrastructure
+
+Inter-switch links and router-facing switchports were configured as 802.1Q trunks. Trunk interfaces permit frame tagging across multiple VLANs, restricting allowed VLANs exclusively to active operational segments (10, 20).
+
+### C. Inter-VLAN Routing via Router-on-a-Stick (ROAS)
+
+Logical subinterfaces were instantiated on R1's physical interface (Gi0/0/0). IEEE 802.1Q encapsulation (`encapsulation dot1Q <vlan-id>`) was applied per subinterface to terminate VLAN tags and serve as default gateways for the respective subnets.
+
+### D. Cisco IOS Integrated DHCP Server
+
+Dynamic IP assignment was configured directly on R1 for each VLAN segment:
+
+- Static address exclusions (`ip dhcp excluded-address`) were defined to protect gateway IPs and infrastructure services.
+- Distinct DHCP pools (`VLAN10_POOL` and `VLAN20_POOL`) were created with matching network parameters, default gateways, and external DNS servers (`8.8.8.8`).
+
+---
+
+## 4. Key Verification Commands
+
+### Verify Layer 2 VLAN Membership
+
+```text
+SW2# show vlan brief
+```
+
+**Result:** Confirms VLANs 10 and 20 are active and bound to Fa0/10 and Fa0/20.
+
+### Verify 802.1Q Trunking
+
+```text
+SW2# show interfaces trunk
+```
+
+**Result:** Validates that interface Gi0/2 operates in 802.1q mode and that the allowed VLAN list includes 10 and 20.
+
+### Verify Active DHCP Bindings on R1
+
+```text
+R1# show ip dhcp binding
+```
+
+**Result:** Displays assigned IP addresses (`192.168.10.11` and `192.168.20.11`), hardware MAC addresses, and lease expiration status.
+
+### Verify Routing Table for Subinterfaces
+
+```text
+R1# show ip route connected
+```
+
+**Result:** Confirms directly connected routes for `192.168.10.0/24` via Gi0/0/0.10 and `192.168.20.0/24` via Gi0/0/0.20.
+
+### End-to-End Inter-VLAN Connectivity Test
+
+```text
+PC_Admin> ping 192.168.20.11
+```
+
+**Result:** Successful ICMP echo replies between VLAN 10 and VLAN 20 across the router subinterfaces.
+
+---
+
+## 5. Demonstrated Skills and Key Takeaways
+
+- Designing scalable 802.1Q VLAN structures and trunking policies.
+- Implementing Router-on-a-Stick (ROAS) architecture using subinterfaces.
+- Configuring centralized Cisco IOS DHCP services with address exclusions.
+- Troubleshooting Layer 2/Layer 3 boundaries and validating end-to-end IP convergence.
