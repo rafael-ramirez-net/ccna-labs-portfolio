@@ -1,0 +1,123 @@
+# Network Engineering Portfolio | CCNA 200-301
+
+## Lab: Standard and Extended ACL Implementation (Perimeter Security)
+
+**Author:** Rafael Andrés Ramírez Benavides
+**Role:** Junior Network Engineer
+**Certifications in preparation:** Cisco Certified Network Associate (CCNA 200-301)
+
+
+---
+
+## 1. Lab Overview
+
+This lab implements **Access Control Lists (ACLs)** on a Cisco router (`R Cafeteria`) using a Router-on-a-Stick (ROAS) inter-VLAN routing architecture. The goal is to enforce Layer 3 security policies that:
+
+- Isolate guest network traffic (VLAN 30) from the management network (VLAN 10).
+- Restrict remote administration access over SSH from the Point-of-Sale network (VLAN 20).
+
+The lab also applies ACL placement best practices: **standard** ACLs close to the destination and **extended** ACLs close to the source.
+
+---
+
+## 2. Topology and Network Segmentation
+
+![ACL lab topology](Topologia-ACLs.png)
+
+- **Central router (`R Cafeteria`):** Handles inter-VLAN routing through subinterfaces, the integrated DHCP server, and traffic control policies. It connects to an `ISP` router over the `10.1.1.0/30` network.
+- **Access switch:** Carries the 802.1Q trunk to the router and the access ports for each VLAN.
+- **Access Point:** Provides Wi-Fi to the clients in VLAN 30.
+
+| VLAN | Name | Subnet | Devices |
+| :--- | :--- | :--- | :--- |
+| **10** | Management | `192.168.10.0/24` (Gateway: `192.168.10.1`) | `PCmanager`, `Printer0` |
+| **20** | POS / Cash Register | `192.168.20.0/24` | `PCCaja`, `Printer1` |
+| **30** | Guest Wi-Fi | `192.168.30.0/24` | Customer laptops, tablet, and smartphones |
+
+---
+
+## 3. Configuration and Policy Application
+
+### A. Standard ACL: Guest Isolation from VLAN 10
+
+A named standard ACL was created to block traffic originating from the guest network (`192.168.30.0/24`) toward the management network, while permitting all other sources.
+
+```text
+enable
+configure terminal
+ip access-list standard BLOQUEAR_INVITADOS
+ deny 192.168.30.0 0.0.0.255
+ permit any
+exit
+```
+
+**Application:** standard ACLs filter only by source IP address, so they are placed as close as possible to the **destination**: outbound (`out`) on the VLAN 10 subinterface.
+
+```text
+interface GigabitEthernet0/1.10
+ ip access-group BLOQUEAR_INVITADOS out
+exit
+```
+
+### B. Extended ACL: Remote Administration Restriction (SSH)
+
+To limit remote administration access from the POS network (VLAN 20), a named extended ACL was configured to block TCP port `22` (SSH) originating from VLAN 20 toward any destination, while permitting all other traffic.
+
+```text
+ip access-list extended BLOQUEAR_ADMIN_REMOTA
+ deny tcp 192.168.20.0 0.0.0.255 any eq 22
+ permit ip any any
+exit
+```
+
+**Application:** extended ACLs can filter by protocol, source, destination, and port, so they are placed as close as possible to the **source**: inbound (`in`) on the VLAN 20 subinterface.
+
+```text
+interface GigabitEthernet0/1.20
+ ip access-group BLOQUEAR_ADMIN_REMOTA in
+exit
+```
+
+### Placement Summary
+
+| ACL | Type | Filters by | Interface | Direction |
+| :--- | :--- | :--- | :--- | :---: |
+| `BLOQUEAR_INVITADOS` | Standard | Source IP | `Gi0/1.10` | `out` |
+| `BLOQUEAR_ADMIN_REMOTA` | Extended | Protocol, source, destination, and port | `Gi0/1.20` | `in` |
+
+---
+
+## 4. Verification and Test Results
+
+| # | Test | Source | Destination | Expected Outcome | Result |
+| :-: | :--- | :--- | :--- | :--- | :---: |
+| 1 | DHCP and 802.1Q trunk | Wi-Fi clients (VLAN 30) | Internet / `ISP` | Dynamic IP in `192.168.30.0/24` and Internet access | ✅ PASSED |
+| 2 | Standard ACL | Wi-Fi client (VLAN 30) | Management network (VLAN 10) | `ping` fails with *Host unreachable* | ✅ PASSED |
+| 3 | Extended ACL | VLAN 20 terminal | `ssh -l admin 192.168.10.1` | Connection rejected (*Connection timed out*) | ✅ PASSED |
+
+**Test details:**
+
+1. **DHCP and trunking:** correct 802.1Q tagging was validated on the switch trunk port, allowing VLAN 30 devices to obtain IP addresses dynamically and reach the Internet.
+2. **Standard ACL:** a `ping` from a Wi-Fi client (VLAN 30) to the management network (VLAN 10) returns `Host unreachable`, confirming the ACL blocks the traffic.
+3. **Extended ACL:** SSH connection attempts (`ssh -l admin 192.168.10.1`) from VLAN 20 terminals to the router are rejected (*Connection timed out*), enforcing the security policy.
+
+### Router Verification Commands
+
+```text
+R_Cafeteria# show access-lists
+R_Cafeteria# show ip interface GigabitEthernet0/1.10
+R_Cafeteria# show ip interface GigabitEthernet0/1.20
+```
+
+- `show access-lists` lists each rule with its match counter (`matches`), which increments every time a test triggers the rule.
+- `show ip interface <subinterface>` confirms which ACL is applied and in which direction (inbound or outbound access list).
+
+---
+
+## 5. Demonstrated Skills and Key Takeaways
+
+- Designing and applying named standard and extended ACLs in Cisco IOS.
+- Applying correct ACL placement: standard close to the destination, extended close to the source.
+- Controlling access between VLANs in a Router-on-a-Stick environment.
+- Restricting remote administration services (SSH) through TCP port filtering.
+- Verifying security policies with connectivity tests and ACL match counters.
